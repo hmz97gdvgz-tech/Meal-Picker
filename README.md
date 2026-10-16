@@ -1,38 +1,48 @@
-# Meal Picker PWA — Updated Edition
+# Meal Picker 3.0
 
-A personal, offline-capable meal suggestion app. Three categories are preloaded with the dish lists supplied by the app owner:
+A private-on-device, offline-capable Progressive Web App for picking meals from your own menus. Static source code and original starter dishes are public in a public GitHub repository; your edits and browsing history stay in your browser's localStorage.
 
-- **Breakfast:** 16 suggestions
-- **Lunch / Dinner:** 18 suggestions
-- **Protein Power:** 10 suggestions (6 paneer + 4 chicken)
+## Included
 
-Individual list entries that name variants are shown as one suggestion, with all listed variants retained.
+- 16 Breakfast suggestions, 18 Lunch / Dinner suggestions, 10 Protein Power suggestions
+- 44 distinct, bundled vector-style dish illustrations in a single offline PNG sprite atlas
+- Automatic Light / Dark appearance via `prefers-color-scheme`, following iPhone settings
+- Non-repeating randomized rotation per category, with accurate Previous and Next history
+- Add, rename, and delete dishes; import / export list backups
+- First-run defaults and automatic reuse of existing `meal-picker-v2` local data
+- Offline caching using the v3 service worker; Content Security Policy; no external code or tracking
 
-## Updating the existing GitHub Pages app
+## Install or upgrade on GitHub Pages
 
-1. Extract `meal-picker-updated.zip`.
-2. In the GitHub **Meal-Picker** repository, upload **all eight files** from this folder to the repository root, replacing existing files of the same name. `styles.css` is new and must be included.
-3. Commit the changes to `main`. The existing GitHub Pages deployment automatically updates after a short delay.
-4. Open the GitHub Pages URL on the iPhone. If the installed Home Screen app initially shows the old categories, close and reopen it after a minute or open Safari at the URL to trigger the service-worker update. Do **not** clear website data or uninstall the app merely to refresh it: this may delete locally saved lists.
-5. Check all three categories and use **Manage meal lists** for subsequent changes.
+1. Save a backup on your phone first: **Edit menus** -> **Export backup** (save JSON in Files / iCloud Drive).
+2. Extract this ZIP on a computer.
+3. Open the existing `Meal-Picker` repository on GitHub. On the **Code** tab choose **Add file** > **Upload files**.
+4. Upload the **nine files** from this folder, *not* the ZIP and not the parent folder:
+   `index.html`, `app.js`, `styles.css`, `sw.js`, `manifest.webmanifest`, `food-atlas.png`, `icon-192.png`, `icon-512.png`, `README.md`.
+   Use the repository root; don't nest the files in a folder. Confirm overwriting files with matching names as prompted.
+5. Commit with a message such as `Upgrade Meal Picker to v3`.
+6. GitHub Pages will publish automatically. Open `https://hmz97gdvgz-tech.github.io/Meal-Picker/` once deployment finishes.
+7. On the iPhone, close and reopen the installed PWA. Cached v2 assets can take a second reopen to update. Do **not** delete the app or clear its website data.
 
-## Existing user data and migration
+## Troubleshooting
 
-This edition stores lists in `meal-picker-v2` so the previously saved `meal-picker-v1` data remains untouched.
+- **Still seeing v2?** Open the GitHub Pages URL in Safari, give the deployment a minute, reload, and reopen the installed app. The service worker updates the cache when v3 is fetched.
+- **Missing illustrations?** Confirm `food-atlas.png` is at the root and was uploaded successfully.
+- **Meal lists missing?** Do not clear browser storage. Restore using the previously exported JSON backup in **Edit menus** -> **Import backup**. Safari and Home Screen PWA storage may be separate.
+- **Dark mode not switching?** Verify iPhone `Settings > Display & Brightness > Dark`, close/reopen the PWA. There is no in-app theme toggle; it follows the OS.
 
-On first use, the app starts with all 44 preloaded suggestions. If this device has user-entered dishes in the previous version, it **merges** them into the corresponding categories without duplicates: previous Breakfast becomes Breakfast; previous Lunch and Dinner are merged into Lunch / Dinner. Protein Power starts with the new entries. This preserves prior work, but any earlier test dishes may also appear; remove them using Manage meal lists if needed. Later updates do not re-add built-in entries that you have deleted.
+## Privacy / security
 
-New edits and history are kept locally on each device. The app does not synchronize across devices. An existing v1 backup can also be imported; that import merges its dishes into the supplied defaults. Exports from v2 preserve the three new categories.
+The source contains the original 44 dish names and illustrations, and will be publicly readable when hosted on a public repository. Personal changes, navigation history and edited menus are stored only in your device's local browser data; there are no analytics, adverts, permissions or third-party JS libraries. It is important to use GitHub two-factor authentication. Browser local data is not encrypted separately and can be lost if web-app storage is removed; maintain backups.
 
-## Randomization
+## Technical files
 
-For each category, the app shuffles all available dishes without repetition within each cycle. The **Previous** button travels back through the actual viewed history. **Next** walks forward through prior history before showing a new entry. At the end of a cycle, the order is shuffled again, with the first selection kept different from the final selection of the previous cycle where possible.
+- `app.js`: all app logic, dish defaults and migration/backup functions; V2 key remains `meal-picker-v2` for seamless upgrades.
+- `styles.css`: layout, styling, 44 atlas-position classes, OS-linked dark theme.
+- `food-atlas.png`: 6-column, 8-row art atlas. Artwork for all supplied dishes at positions 0-43. Newly entered dishes receive a category-style placeholder.
+- `sw.js`: cache v3 assets and serve them offline; same-origin, same-scope requests only.
+- `manifest.webmanifest`: install metadata.
+- `icon-192.png` and `icon-512.png`: Home Screen icon assets.
+- `index.html`: HTML shell with CSP and light/dark theme-color metadata.
 
-## Privacy and security
-
-- GitHub Pages makes the **application code and default meal list public**. It does **not** receive meal lists you add on your device.
-- No accounts, trackers, third-party scripts, remote APIs or iPhone permissions are required.
-- A restrictive Content Security Policy (CSP) is included. The app's service worker intercepts only same-origin requests within this app's path.
-- Backup imports are validated with file-size, category, item count and name-length checks, and require confirmation before replacing lists.
-- The app's `localStorage` contents are not separately encrypted. Use **Export backup** periodically and retain copies in a trusted location.
-- Do not clear the app's Safari website data or delete the Home Screen installation unless you have a backup.
+No package manager, API, payment or server is required. Use HTTPS GitHub Pages for full PWA install/offline support.
