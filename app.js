@@ -1,7 +1,7 @@
 'use strict';
 
 // Built-in suggestions and illustrative artwork are public because the GitHub Pages repository is public.
-// Built-ins initialize local storage on first use; existing v2 data is preserved unmodified.
+// Built-ins initialize local storage on first use; existing local menus and navigation history are preserved during upgrades.
 const CATS = ['Breakfast', 'Lunch / Dinner', 'Protein Power'];
 const DEFAULT_NAMES = {
   'Breakfast': [
@@ -28,7 +28,7 @@ const DEFAULT_NAMES = {
     'Dosa',
     'Veg Pulav',
     'Pasta',
-    'Noodles',
+    'Noodles with vegetables',
     'Veg quinoa',
     'Veg daliya',
     '3 bean salad',
@@ -40,7 +40,14 @@ const DEFAULT_NAMES = {
     'Basil Vegetables Curry & Rice',
     'Egg parantha',
     'Mushroom Stroganoff & herb Rice',
-    'Veg cheese quesadillas'
+    'Veg cheese quesadillas',
+    'Bottle Gourd Soup',
+    'Tomato Soup',
+    'Vegetable Soup',
+    'Curry Pakora Rice',
+    'Moong Dal Soup',
+    'White Chole Corn Salad',
+    'Khichadi'
   ],
   'Protein Power': [
     'Shahi paneer',
@@ -52,10 +59,19 @@ const DEFAULT_NAMES = {
     'Chicken tikka marinade: curd/ lemon ginger garlic/ coriander garlic black pepper',
     'Chicken masala',
     'Chicken biryani',
-    'Chicken tikka roll + coriander chutney'
+    'Chicken tikka roll + coriander chutney',
+    'Ghee Roast Chicken',
+    'Chicken Mushroom Soup',
+    'Paneer Kofta'
   ]
 };
-const KEY = 'meal-picker-v2';
+const KEY = 'meal-picker-v2'; // Keep unchanged to retain the current iPhone Home Screen app data.
+const CONTENT_VERSION = '3.1';
+const ADDITIONS_31 = {
+  'Breakfast': [],
+  'Lunch / Dinner': DEFAULT_NAMES['Lunch / Dinner'].slice(18),
+  'Protein Power': DEFAULT_NAMES['Protein Power'].slice(10)
+};
 const OLD_KEY = 'meal-picker-v1';
 const MAX_ITEMS = 500;
 const MAX_NAME = 180;
@@ -119,6 +135,55 @@ function readJSON(key) {
     return raw && raw.length <= 5000000 ? JSON.parse(raw) : null;
   } catch { return null; }
 }
+function normalizedName(value) { return value.trim().toLocaleLowerCase(); }
+
+// One-time additive upgrade from Version 3.0. In particular, preserve the ID
+// of the existing Noodles item so that Previous / Next history still works.
+function upgradeMenus31(result) {
+  const lunch = result.lists['Lunch / Dinner'];
+  const plainNoodles = lunch.find(d => normalizedName(d.name) === 'noodles');
+  const vegNoodles = lunch.find(d => normalizedName(d.name) === 'noodles with vegetables');
+  if (plainNoodles && vegNoodles) {
+    // If the user had already added the new name, keep that entry and avoid a duplicate.
+    const session = result.sessions['Lunch / Dinner'];
+    const from = plainNoodles.id, to = vegNoodles.id;
+    session.history = session.history.map(id => id === from ? to : id);
+    const shown = new Set(session.history);
+    session.order = [...new Set(session.order.map(id => id === from ? to : id))].filter(id => !shown.has(id));
+    result.lists['Lunch / Dinner'] = lunch.filter(d => d.id !== from);
+  } else if (plainNoodles) {
+    plainNoodles.name = 'Noodles with vegetables';
+  }
+  for (const cat of CATS) {
+    const list = result.lists[cat];
+    const existing = new Set(list.map(d => normalizedName(d.name)));
+    const existingIds = new Set(list.map(d => d.id));
+    const addedIds = [];
+    // Includes Noodles with vegetables for users who no longer have plain Noodles.
+    const additions = cat === 'Lunch / Dinner'
+      ? ['Noodles with vegetables', ...ADDITIONS_31[cat]] : ADDITIONS_31[cat];
+    for (const name of additions) {
+      if (existing.has(normalizedName(name)) || list.length >= MAX_ITEMS) continue;
+      const defaultIndex = DEFAULT_NAMES[cat].indexOf(name);
+      let id = `starter-${CATS.indexOf(cat)}-${defaultIndex}`;
+      if (existingIds.has(id)) id = crypto.randomUUID();
+      list.push({id,name});
+      existing.add(normalizedName(name));
+      existingIds.add(id);
+      addedIds.push(id);
+    }
+    // New dishes join the unshown portion of an in-progress shuffle without
+    // clearing the current suggestion, cursor or Previous history.
+    const s = result.sessions[cat];
+    if ((s.history.length || s.order.length) && addedIds.length) {
+      for (const id of shuffle(addedIds)) {
+        const pos = Math.floor(Math.random() * (s.order.length + 1));
+        s.order.splice(pos,0,id);
+      }
+    }
+    result.sessions[cat] = safeSession(s, list);
+  }
+}
 function loadState() {
   const result = fresh();
   const saved = readJSON(KEY);
@@ -128,6 +193,7 @@ function loadState() {
       if (list !== null) result.lists[cat] = list;
       result.sessions[cat] = safeSession(saved.sessions?.[cat], result.lists[cat]);
     }
+    if (saved.contentVersion !== CONTENT_VERSION) upgradeMenus31(result);
     return result;
   }
   // One-time migration from the former Breakfast / Lunch / Dinner app.
@@ -144,7 +210,7 @@ let state = loadState();
 let storageWarningShown = false;
 function save() {
   try {
-    localStorage.setItem(KEY, JSON.stringify({lists: state.lists, sessions: state.sessions}));
+    localStorage.setItem(KEY, JSON.stringify({contentVersion: CONTENT_VERSION, lists: state.lists, sessions: state.sessions}));
   } catch {
     if (!storageWarningShown) {
       storageWarningShown = true;
@@ -200,11 +266,18 @@ function current(cat) {
   return state.lists[cat].find(x => x.id === s.history[s.cursor]);
 }
 
-// Indexes correspond to the bundled, 6-column x 8-row illustration atlas.
-// The original starter IDs survive the v2 -> v3 migration.
-const ART_BY_NAME = new Map(CATS.flatMap(cat => DEFAULT_NAMES[cat].map((name, i) => [
-  name.trim().toLocaleLowerCase(), (cat === 'Breakfast' ? 0 : cat === 'Lunch / Dinner' ? 16 : 34) + i
-])));
+// Original 44 dish illustrations retain their atlas positions, including the
+// renamed Noodles item. The ten new dishes have their own illustration atlas.
+const ORIGINAL_COUNTS = [16,18,10];
+const ART_BY_NAME = new Map(CATS.flatMap((cat,ci) =>
+  DEFAULT_NAMES[cat].slice(0,ORIGINAL_COUNTS[ci]).map((name,i) => [
+    normalizedName(name), (ci === 0 ? 0 : ci === 1 ? 16 : 34) + i
+  ])
+));
+const EXTRA_ART_BY_NAME = new Map([
+  ...ADDITIONS_31['Lunch / Dinner'],
+  ...ADDITIONS_31['Protein Power']
+].map((name,i) => [normalizedName(name),i]));
 const ICONS = {
   back: '<path d="m15 18-6-6 6-6"/>',
   next: '<path d="m9 18 6-6-6-6"/>',
@@ -257,7 +330,7 @@ function artIndex(cat, dish) {
   const starter = /^starter-(\d+)-(\d+)$/.exec(dish.id);
   if (starter && Number(starter[1]) === categoryIndex) {
     const n = Number(starter[2]);
-    const max = DEFAULT_NAMES[cat].length;
+    const max = ORIGINAL_COUNTS[categoryIndex];
     if (n >= 0 && n < max && dish.name.trim().toLocaleLowerCase() === DEFAULT_NAMES[cat][n].toLocaleLowerCase()) return (categoryIndex===0 ? 0 : categoryIndex===1 ? 16 : 34) + n;
   }
   const val = ART_BY_NAME.get(dish.name.trim().toLocaleLowerCase());
@@ -266,7 +339,9 @@ function artIndex(cat, dish) {
 function art(cat, dish, cls='') {
   const frame = el('div','dish-art ' + cls);
   const idx = artIndex(cat,dish);
+  const extra = dish ? EXTRA_ART_BY_NAME.get(normalizedName(dish.name)) : undefined;
   if (idx >= 0) frame.classList.add('art-' + idx);
+  else if (Number.isInteger(extra)) frame.classList.add('art-extra-' + extra);
   else {
     frame.classList.add('art-fallback', 'fallback-' + CATS.indexOf(cat));
     frame.append(icon(cat === 'Protein Power' ? 'heart' : 'bowl'));
@@ -304,7 +379,7 @@ function mainHome(root) {
       show('suggest',cat);
     });
     card.textContent='';
-    const featured=state.lists[cat].find(d=>artIndex(cat,d)>=0) || state.lists[cat][0] || {id:`starter-${i}-0`,name:DEFAULT_NAMES[cat][0]};
+    const featured=state.lists[cat].find(d=>artIndex(cat,d)>=0 || EXTRA_ART_BY_NAME.has(normalizedName(d.name))) || state.lists[cat][0] || {id:`starter-${i}-0`,name:DEFAULT_NAMES[cat][0]};
     card.append(art(cat,featured,'card-art'));
     const textBox=el('span','category-copy');
     textBox.append(el('span','category-title',cat),el('span','category-description',summaries[i]),el('span','category-count',`${state.lists[cat].length} ${state.lists[cat].length===1?'dish':'dishes'}`));
@@ -363,7 +438,7 @@ function mainManage(root){
 let editingId = null;
 function mainEdit(root){
   const cat=state.category;
-  const intro=el('section','page-intro');intro.append(tag('EDIT MENU'),el('h1','display-title',cat),el('p','lede','Add, rename or remove a dish. The illustrations are included for your original 44 dishes.'));root.append(intro);
+  const intro=el('section','page-intro');intro.append(tag('EDIT MENU'),el('h1','display-title',cat),el('p','lede','Add, rename or remove a dish. Illustrations are included for all 54 curated dishes.'));root.append(intro);
   const form=el('form','add-form');const input=el('input','add-input');input.type='text';input.placeholder='Add a dish';input.maxLength=MAX_NAME;input.required=true;input.setAttribute('aria-label','New dish name');
   const add=el('button','add-button');add.type='submit';add.append(icon('plus'),document.createTextNode('Add'));
   form.append(input,add);
@@ -420,11 +495,11 @@ function render(){
   else if(state.screen==='manage')mainManage(content);
   else if(state.screen==='edit')mainEdit(content);
   root.append(content);
-  const footer=el('footer','app-footer');footer.append(el('span','','MADE FOR YOUR MENU'),el('span','','v3.0'));
+  const footer=el('footer','app-footer');footer.append(el('span','','MADE FOR YOUR MENU'),el('span','','v3.1'));
   root.append(footer);
 }
 function exportData(){
-  const data={version:3,lists:state.lists};
+  const data={version:3.1,lists:state.lists};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);const a=el('a');a.href=url;a.download='meal-picker-backup.json';document.body.append(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -444,6 +519,12 @@ async function importData(event){
       mergeUnique(candidate.Breakfast,b);mergeUnique(candidate['Lunch / Dinner'],l);mergeUnique(candidate['Lunch / Dinner'],d);
     }else throw Error('Unrecognized categories.');
     if(Object.values(candidate).some(x=>x===null))throw Error('Invalid dish list.');
+    // Older exports receive the new Version 3.1 dishes on import as well.
+    if(Number(parsed.version) < 3.1 || parsed.version === undefined) {
+      const migrated={lists:candidate,sessions:Object.fromEntries(CATS.map(cat=>[cat,{order:[],history:[],cursor:-1}]))};
+      upgradeMenus31(migrated);
+      candidate=migrated.lists;
+    }
     if(!confirm('Replace your current meal lists with this backup?'))return;
     state.lists=candidate;state.sessions=Object.fromEntries(CATS.map(cat=>[cat,{order:[],history:[],cursor:-1}]));
     editingId=null;save();render();

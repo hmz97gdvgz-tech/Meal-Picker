@@ -55,3 +55,16 @@
 .art-41{background-position:100% 85.7143%}
 .art-42{background-position:0% 100%}
 .art-43{background-position:20% 100%}
+
+/* New dishes share the existing illustrative, locally cached visual treatment. */
+.dish-art[class*="art-extra-"]{background-image:url('./food-atlas-additions.png');background-size:500% 200%}
+.art-extra-0{background-position:0% 0%}
+.art-extra-1{background-position:25% 0%}
+.art-extra-2{background-position:50% 0%}
+.art-extra-3{background-position:75% 0%}
+.art-extra-4{background-position:100% 0%}
+.art-extra-5{background-position:0% 100%}
+.art-extra-6{background-position:25% 100%}
+.art-extra-7{background-position:50% 100%}
+.art-extra-8{background-position:75% 100%}
+.art-extra-9{background-position:100% 100%}

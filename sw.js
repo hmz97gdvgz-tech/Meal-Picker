@@ -1,7 +1,7 @@
 'use strict';
-const CACHE='meal-picker-cache-v3';
+const CACHE='meal-picker-cache-v3.1';
 const PREFIX='meal-picker-cache-';
-const FILES=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./icon-192.png','./icon-512.png','./food-atlas.png'];
+const FILES=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./icon-192.png','./icon-512.png','./food-atlas.png','./food-atlas-additions.png'];
 const SCOPE=new URL(self.registration.scope);
 self.addEventListener('install',event=>{
  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES)).then(()=>self.skipWaiting()));
